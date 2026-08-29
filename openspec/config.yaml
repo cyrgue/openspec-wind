@@ -2,12 +2,17 @@ schema: spec-driven
 
 # Project context (optional)
 # This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Git branching: for every new change/proposal created with `openspec new
+  change <change-name>`, create and check out a new git branch before writing
+  any planning artifacts (proposal, specs, design, tasks). Branch name format:
+    feature/FT-XXX-<change-name>
+  - <change-name> is the change's kebab-case name (the same name passed to
+    `openspec new change`).
+  - XXX is a zero-padded 3-digit number, starting at 002 and incrementing by 1
+    for each new change. Determine the next number by finding the highest
+    existing feature/FT-XXX-* branch (local and remote) and adding 1; if none
+    exist yet, start at 002.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
