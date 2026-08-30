@@ -1,122 +1,115 @@
-import { Component, effect, inject, input } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { MeteoFranceService } from '../services/api/meteo-france.service';
 import { MeteoFranceWeatherResponse } from '../services/api/meteo-france.types';
 
+const CARDINAUX = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'] as const;
+
 /**
- * Weather widget component that displays current weather using Météo France API.
- * Can be integrated into any page to show weather information.
+ * Affiche les conditions météo courantes d'un point géographique
+ * via l'API Météo France (open-meteo.com).
  */
 @Component({
   selector: 'app-weather-widget',
-  standalone: true,
-  imports: [CommonModule],
   template: `
-    <div class="card weather-widget p-4">
-      <h5 class="card-title mb-4">
-        <i class="bi bi-cloud-sun"></i>
-        Météo Actuelle
-      </h5>
+    <div class="card h-100">
+      <div class="card-body">
+        <h3 class="card-title h6 text-uppercase text-body-secondary mb-3">
+          Conditions actuelles
+        </h3>
 
-      @if (loading()) {
-        <div class="text-center">
-          <div class="spinner-border spinner-border-sm" role="status">
-            <span class="visually-hidden">Chargement...</span>
-          </div>
+        <div aria-live="polite" aria-busy="{{ loading() }}">
+          @if (loading()) {
+            <div class="d-flex align-items-center gap-2 text-body-secondary">
+              <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+              <span>Chargement de la météo…</span>
+            </div>
+          } @else if (error()) {
+            <div class="alert alert-warning mb-0" role="alert">{{ error() }}</div>
+          } @else if (current(); as c) {
+            <dl class="row row-cols-2 g-3 mb-0">
+              <div class="col">
+                <dt class="small fw-normal text-body-secondary">Température</dt>
+                <dd class="h4 mb-0">{{ c.temperature_2m }}{{ unit('temperature_2m') }}</dd>
+              </div>
+              <div class="col">
+                <dt class="small fw-normal text-body-secondary">Ressenti</dt>
+                <dd class="h4 mb-0">
+                  {{ c.apparent_temperature }}{{ unit('apparent_temperature') }}
+                </dd>
+              </div>
+              <div class="col">
+                <dt class="small fw-normal text-body-secondary">Vent</dt>
+                <dd class="h4 mb-0">
+                  {{ c.wind_speed_10m }} {{ unit('wind_speed_10m') }}
+                  <span class="fs-6 text-body-secondary">{{ direction() }}</span>
+                </dd>
+              </div>
+              <div class="col">
+                <dt class="small fw-normal text-body-secondary">Rafales</dt>
+                <dd class="h4 mb-0">{{ c.wind_gusts_10m }} {{ unit('wind_gusts_10m') }}</dd>
+              </div>
+              <div class="col">
+                <dt class="small fw-normal text-body-secondary">Humidité</dt>
+                <dd class="h4 mb-0">
+                  {{ c.relative_humidity_2m }}{{ unit('relative_humidity_2m') }}
+                </dd>
+              </div>
+              <div class="col">
+                <dt class="small fw-normal text-body-secondary">Précipitations</dt>
+                <dd class="h4 mb-0">{{ c.precipitation }} {{ unit('precipitation') }}</dd>
+              </div>
+            </dl>
+          }
         </div>
-      }
-
-      @if (error()) {
-        <div class="alert alert-warning mb-0" role="alert">
-          {{ error() }}
-        </div>
-      }
-
-      @if (weather()) {
-        <div class="weather-info">
-          <div class="row mb-3">
-            <div class="col-6">
-              <span class="text-muted">Température</span>
-              <p class="h4 mb-0">{{ weather()?.current.temperature }}°C</p>
-            </div>
-            <div class="col-6">
-              <span class="text-muted">Humidité</span>
-              <p class="h4 mb-0">{{ weather()?.current.relative_humidity }}%</p>
-            </div>
-          </div>
-
-          <div class="row mb-3">
-            <div class="col-6">
-              <span class="text-muted">Vitesse du vent</span>
-              <p class="h4 mb-0">{{ weather()?.current.wind_speed }} km/h</p>
-            </div>
-            <div class="col-6">
-              <span class="text-muted">Précipitations</span>
-              <p class="h4 mb-0">{{ weather()?.current.precipitation }} mm</p>
-            </div>
-          </div>
-
-          <div class="text-muted small">
-            <i class="bi bi-geo-alt"></i>
-            Lat: {{ weather()?.latitude }}, Lon: {{ weather()?.longitude }}
-          </div>
-        </div>
-      }
+      </div>
     </div>
-  `,
-  styles: `
-    .weather-widget {
-      border-radius: 8px;
-      background-color: var(--bs-body-bg);
-      border: 1px solid var(--bs-border-color);
-    }
-
-    .weather-info h4 {
-      color: var(--bs-body-color);
-      margin-bottom: 0.5rem;
-    }
-
-    .weather-info .text-muted {
-      font-size: 0.875rem;
-    }
   `
 })
-export class WeatherWidgetComponent {
-  private meteoService = inject(MeteoFranceService);
+export class WeatherWidget {
+  private readonly meteo = inject(MeteoFranceService);
 
-  // Inputs for location
-  latitude = input<number>(48.8566); // Paris latitude by default
-  longitude = input<number>(2.3522); // Paris longitude by default
+  readonly latitude = input.required<number>();
+  readonly longitude = input.required<number>();
 
-  // State signals
-  weather = signal<MeteoFranceWeatherResponse | null>(null);
-  loading = signal(true);
-  error = signal<string | null>(null);
+  private readonly response = signal<MeteoFranceWeatherResponse | null>(null);
+  readonly loading = signal(true);
+  readonly error = signal<string | null>(null);
+
+  readonly current = computed(() => this.response()?.current ?? null);
+
+  /** Direction du vent en point cardinal, ex. « SO ». */
+  readonly direction = computed(() => {
+    const deg = this.current()?.wind_direction_10m;
+    if (deg === undefined) {
+      return '';
+    }
+    return CARDINAUX[Math.round(deg / 45) % 8];
+  });
 
   constructor() {
-    // Effect to fetch weather when location changes
-    effect(() => {
-      this.fetchWeather(this.latitude(), this.longitude());
-    });
+    // effect() exige un contexte d'injection : le constructeur en est un.
+    // Il relit latitude()/longitude() et relance l'appel si elles changent.
+    effect(() => this.fetch(this.latitude(), this.longitude()));
   }
 
-  /**
-   * Fetches current weather for the specified location.
-   */
-  private fetchWeather(latitude: number, longitude: number): void {
+  /** Unité renvoyée par l'API pour une variable donnée. */
+  unit(key: keyof NonNullable<MeteoFranceWeatherResponse['current']>): string {
+    return this.response()?.current_units?.[key] ?? '';
+  }
+
+  private fetch(latitude: number, longitude: number): void {
     this.loading.set(true);
     this.error.set(null);
 
-    this.meteoService.getCurrentWeather(latitude, longitude).subscribe({
+    this.meteo.getCurrentWeather(latitude, longitude).subscribe({
       next: (data) => {
-        this.weather.set(data);
+        this.response.set(data);
         this.loading.set(false);
       },
-      error: (err) => {
-        this.error.set('Impossible de charger la météo. Veuillez réessayer.');
+      error: (err: Error) => {
+        this.error.set('Météo indisponible pour le moment.');
         this.loading.set(false);
-        console.error('Erreur lors du chargement de la météo:', err);
+        console.error('[WeatherWidget]', err.message);
       }
     });
   }

@@ -30,9 +30,9 @@
 ## 📋 À faire (Prochaines étapes)
 
 ### Tâche 6: Intégration dans Wind Page
-- [ ] Importer `WeatherWidgetComponent` dans `wind-page.ts`
-- [ ] Ajouter le composant au template de wind-page
-- [ ] Tester avec des coordonnées réelles
+- [x] Importer `WeatherWidget` dans `wind-page.ts`
+- [x] Ajouter le composant au template de wind-page
+- [x] Tester avec des coordonnées réelles (Paris, Lyon, Marseille)
 
 ### Tâche 7: Tests unitaires
 - [ ] Créer `http-client.service.spec.ts`

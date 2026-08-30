@@ -1,129 +1,125 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { HttpClientService } from './http-client.service';
-import { MeteoFranceWeatherResponse, MeteoFranceRequestParams } from './meteo-france.types';
+import { HttpClientService, QueryParams } from './http-client.service';
+import {
+  CurrentVariable,
+  DailyVariable,
+  HourlyVariable,
+  MeteoFranceRequestParams,
+  MeteoFranceWeatherResponse
+} from './meteo-france.types';
+
+/** Jeu de variables `current` utilisé par défaut. */
+const DEFAULT_CURRENT: readonly CurrentVariable[] = [
+  'temperature_2m',
+  'relative_humidity_2m',
+  'apparent_temperature',
+  'precipitation',
+  'weather_code',
+  'wind_speed_10m',
+  'wind_direction_10m',
+  'wind_gusts_10m'
+];
+
+const DEFAULT_HOURLY: readonly HourlyVariable[] = [
+  'temperature_2m',
+  'relative_humidity_2m',
+  'precipitation',
+  'weather_code',
+  'wind_speed_10m'
+];
+
+const DEFAULT_DAILY: readonly DailyVariable[] = [
+  'temperature_2m_max',
+  'temperature_2m_min',
+  'precipitation_sum',
+  'weather_code',
+  'wind_speed_10m_max'
+];
 
 /**
- * Service for interacting with the Météo France API (open-meteo.com).
- * Provides methods to fetch current weather, hourly forecasts, and daily forecasts.
+ * Accès à l'API Météo France exposée par open-meteo.com.
+ * Aucune authentification requise.
  */
 @Injectable({ providedIn: 'root' })
 export class MeteoFranceService {
-  private httpClient = inject(HttpClientService);
+  private readonly http = inject(HttpClientService);
 
-  private readonly API_BASE_URL = 'https://api.open-meteo.com/v1/forecast';
+  private readonly baseUrl = 'https://api.open-meteo.com/v1/forecast';
 
-  constructor() {}
-
-  /**
-   * Fetches weather data for a given location.
-   * @param latitude - Location latitude
-   * @param longitude - Location longitude
-   * @param params - Optional request parameters
-   * @returns Observable of weather response
-   */
+  /** Appel générique : on choisit soi-même les blocs et variables. */
   getWeather(
     latitude: number,
     longitude: number,
-    params?: Partial<MeteoFranceRequestParams>
+    params: MeteoFranceRequestParams = {}
   ): Observable<MeteoFranceWeatherResponse> {
-    const queryParams = this.buildQueryParams(latitude, longitude, params);
-    const url = `${this.API_BASE_URL}?${queryParams}`;
-    return this.httpClient.get<MeteoFranceWeatherResponse>(url);
-  }
-
-  /**
-   * Fetches current weather for a given location.
-   * @param latitude - Location latitude
-   * @param longitude - Location longitude
-   * @returns Observable of weather response with current data only
-   */
-  getCurrentWeather(latitude: number, longitude: number): Observable<MeteoFranceWeatherResponse> {
-    return this.getWeather(latitude, longitude, {
-      current:
-        'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m'
+    return this.http.get<MeteoFranceWeatherResponse>(this.baseUrl, {
+      params: this.buildParams(latitude, longitude, params)
     });
   }
 
-  /**
-   * Fetches hourly forecast for a given location.
-   * @param latitude - Location latitude
-   * @param longitude - Location longitude
-   * @param forecastDays - Number of days to forecast (default: 7)
-   * @returns Observable of weather response with hourly data
-   */
+  /** Conditions courantes uniquement. */
+  getCurrentWeather(
+    latitude: number,
+    longitude: number
+  ): Observable<MeteoFranceWeatherResponse> {
+    return this.getWeather(latitude, longitude, { current: DEFAULT_CURRENT });
+  }
+
+  /** Conditions courantes + prévisions horaires. */
   getHourlyForecast(
     latitude: number,
     longitude: number,
-    forecastDays: number = 7
+    forecastDays = 7
   ): Observable<MeteoFranceWeatherResponse> {
     return this.getWeather(latitude, longitude, {
-      current:
-        'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
-      hourly: 'temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m',
+      current: DEFAULT_CURRENT,
+      hourly: DEFAULT_HOURLY,
       forecast_days: forecastDays
     });
   }
 
-  /**
-   * Fetches daily forecast for a given location.
-   * @param latitude - Location latitude
-   * @param longitude - Location longitude
-   * @param forecastDays - Number of days to forecast (default: 7)
-   * @returns Observable of weather response with daily data
-   */
+  /** Conditions courantes + prévisions quotidiennes. */
   getDailyForecast(
     latitude: number,
     longitude: number,
-    forecastDays: number = 7
+    forecastDays = 7
   ): Observable<MeteoFranceWeatherResponse> {
     return this.getWeather(latitude, longitude, {
-      current:
-        'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m',
-      daily: 'temperature_2m_max,temperature_2m_min,precipitation_sum,weather_code,wind_speed_10m_max',
+      current: DEFAULT_CURRENT,
+      daily: DEFAULT_DAILY,
       forecast_days: forecastDays
     });
   }
 
   /**
-   * Builds query string from parameters.
-   * @param latitude - Location latitude
-   * @param longitude - Location longitude
-   * @param params - Optional request parameters
-   * @returns Query string for the API request
+   * Construit les paramètres de query string.
+   * Les listes de variables sont jointes par des virgules, comme attendu par l'API.
    */
-  private buildQueryParams(
+  private buildParams(
     latitude: number,
     longitude: number,
-    params?: Partial<MeteoFranceRequestParams>
-  ): string {
-    const queryParams = new URLSearchParams();
+    params: MeteoFranceRequestParams
+  ): QueryParams {
+    const query: QueryParams = {
+      latitude,
+      longitude,
+      timezone: params.timezone ?? 'auto'
+    };
 
-    queryParams.append('latitude', latitude.toString());
-    queryParams.append('longitude', longitude.toString());
-
-    if (params?.current) {
-      queryParams.append('current', params.current);
+    if (params.current?.length) {
+      query['current'] = params.current.join(',');
+    }
+    if (params.hourly?.length) {
+      query['hourly'] = params.hourly.join(',');
+    }
+    if (params.daily?.length) {
+      query['daily'] = params.daily.join(',');
+    }
+    if (params.forecast_days !== undefined) {
+      query['forecast_days'] = params.forecast_days;
     }
 
-    if (params?.hourly) {
-      queryParams.append('hourly', params.hourly);
-    }
-
-    if (params?.daily) {
-      queryParams.append('daily', params.daily);
-    }
-
-    if (params?.timezone) {
-      queryParams.append('timezone', params.timezone);
-    } else {
-      queryParams.append('timezone', 'auto');
-    }
-
-    if (params?.forecast_days) {
-      queryParams.append('forecast_days', params.forecast_days.toString());
-    }
-
-    return queryParams.toString();
+    return query;
   }
 }

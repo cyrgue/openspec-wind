@@ -3,71 +3,50 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
+/** Valeurs acceptées comme paramètres de query string. */
+export type QueryParams = Record<
+  string,
+  string | number | boolean | readonly (string | number | boolean)[]
+>;
+
+/** Options communes à toutes les requêtes. */
+export interface RequestOptions {
+  params?: QueryParams;
+}
+
 /**
- * Base HTTP service providing common functionality for API services.
- * Handles error management, response transformations, and request configuration.
+ * Service HTTP de base : point d'entrée unique pour tous les appels réseau.
+ * Les services d'API métier (MeteoFranceService, etc.) s'appuient dessus
+ * plutôt que d'injecter HttpClient directement.
  */
 @Injectable({ providedIn: 'root' })
 export class HttpClientService {
-  private http = inject(HttpClient);
+  private readonly http = inject(HttpClient);
 
-  constructor() {}
-
-  /**
-   * Performs a GET request to the specified URL.
-   * @param url - The API endpoint URL
-   * @returns Observable of the response
-   */
-  get<T>(url: string): Observable<T> {
-    return this.http.get<T>(url).pipe(catchError(this.handleError));
+  get<T>(url: string, options?: RequestOptions): Observable<T> {
+    return this.http.get<T>(url, options).pipe(catchError(this.handleError));
   }
 
-  /**
-   * Performs a POST request to the specified URL.
-   * @param url - The API endpoint URL
-   * @param body - The request body
-   * @returns Observable of the response
-   */
-  post<T>(url: string, body: any): Observable<T> {
-    return this.http.post<T>(url, body).pipe(catchError(this.handleError));
+  post<T>(url: string, body: unknown, options?: RequestOptions): Observable<T> {
+    return this.http.post<T>(url, body, options).pipe(catchError(this.handleError));
   }
 
-  /**
-   * Performs a PUT request to the specified URL.
-   * @param url - The API endpoint URL
-   * @param body - The request body
-   * @returns Observable of the response
-   */
-  put<T>(url: string, body: any): Observable<T> {
-    return this.http.put<T>(url, body).pipe(catchError(this.handleError));
+  put<T>(url: string, body: unknown, options?: RequestOptions): Observable<T> {
+    return this.http.put<T>(url, body, options).pipe(catchError(this.handleError));
   }
 
-  /**
-   * Performs a DELETE request to the specified URL.
-   * @param url - The API endpoint URL
-   * @returns Observable of the response
-   */
-  delete<T>(url: string): Observable<T> {
-    return this.http.delete<T>(url).pipe(catchError(this.handleError));
+  delete<T>(url: string, options?: RequestOptions): Observable<T> {
+    return this.http.delete<T>(url, options).pipe(catchError(this.handleError));
   }
 
-  /**
-   * Handles HTTP errors and returns a user-friendly error message.
-   * @param error - The HTTP error
-   * @returns Observable error
-   */
-  private handleError(error: HttpErrorResponse) {
-    let errorMessage = 'An error occurred while fetching data';
+  /** Normalise les erreurs HTTP en Error avec un message exploitable. */
+  private handleError(error: HttpErrorResponse): Observable<never> {
+    const message =
+      error.status === 0
+        ? `Réseau injoignable : ${error.message}`
+        : `HTTP ${error.status} sur ${error.url} : ${error.message}`;
 
-    if (error.error instanceof ErrorEvent) {
-      // Client-side error
-      errorMessage = `Error: ${error.error.message}`;
-    } else {
-      // Server-side error
-      errorMessage = `Error Code: ${error.status}\nMessage: ${error.message}`;
-    }
-
-    console.error(errorMessage);
-    return throwError(() => new Error(errorMessage));
+    console.error('[HttpClientService]', message, error.error);
+    return throwError(() => new Error(message));
   }
 }

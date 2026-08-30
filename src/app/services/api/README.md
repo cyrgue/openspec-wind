@@ -1,74 +1,70 @@
-# HTTP Services Layer
+# Couche services HTTP
 
-## Vue d'ensemble
+Centralise les appels réseau de l'application. Les composants n'injectent jamais
+`HttpClient` directement : ils passent par un service d'API métier, qui lui-même
+passe par `HttpClientService`.
 
-La couche `services/api` centralise toutes les communications HTTP de l'application. Elle fournit une architecture type-safe et réutilisable pour appeler les API externes.
-
-## Architecture
-
-### HttpClientService (Base)
-Service de base qui encapsule `HttpClient` d'Angular et fournit des méthodes génériques pour GET, POST, PUT, DELETE.
-
-**Utilisation:**
-```typescript
-private httpClient = inject(HttpClientService);
-
-this.httpClient.get<MyType>(url).subscribe(...);
+```
+Composant → MeteoFranceService → HttpClientService → HttpClient → API
 ```
 
-### Services spécifiques
-Chaque API externe a son propre service héritant de `HttpClientService`.
+## HttpClientService
 
-## Services disponibles
+Socle commun : `get` / `post` / `put` / `delete`, typés génériquement, avec
+normalisation des erreurs en `Error` porteur d'un message exploitable.
 
-### MeteoFranceService
-Service pour l'API Météo France (open-meteo.com).
+```ts
+this.http.get<MonType>(url, { params: { latitude: 48.85, timezone: 'auto' } });
+```
 
-**Méthodes:**
-- `getWeather(lat, lon, params?)` - Récupère les données météo complètes
-- `getCurrentWeather(lat, lon)` - Récupère uniquement la météo actuelle
-- `getHourlyForecast(lat, lon, days?)` - Récupère les prévisions horaires
-- `getDailyForecast(lat, lon, days?)` - Récupère les prévisions quotidiennes
+## MeteoFranceService
 
-**Exemple:**
-```typescript
-import { MeteoFranceService } from '@app/services/api';
+API Météo France via open-meteo.com. Aucune authentification.
 
-export class MyComponent {
-  private meteo = inject(MeteoFranceService);
+| Méthode | Blocs renvoyés |
+| --- | --- |
+| `getWeather(lat, lon, params)` | au choix via `params` |
+| `getCurrentWeather(lat, lon)` | `current` |
+| `getHourlyForecast(lat, lon, days?)` | `current` + `hourly` |
+| `getDailyForecast(lat, lon, days?)` | `current` + `daily` |
 
-  getWeather() {
-    // Récupère la météo à Paris
+```ts
+export class MaPage {
+  private readonly meteo = inject(MeteoFranceService);
+  protected readonly temperature = signal<number | null>(null);
+
+  constructor() {
     this.meteo.getCurrentWeather(48.8566, 2.3522).subscribe({
-      next: (data) => console.log(data),
-      error: (err) => console.error(err)
+      next: (data) => this.temperature.set(data.current?.temperature_2m ?? null),
+      error: (err) => console.error(err.message)
     });
   }
 }
 ```
 
-## Types
+## ⚠️ Nommage des champs de réponse
 
-Les types TypeScript pour les réponses d'API sont définis dans `meteo-france.types.ts`.
+open-meteo renvoie les clés **avec le nom exact de la variable demandée**.
+Demander `current=temperature_2m` produit `current.temperature_2m` — il n'existe
+pas de `current.temperature`. Même logique pour `relative_humidity_2m`,
+`wind_speed_10m`, `wind_gusts_10m`, `wind_direction_10m`.
 
-## Ajout d'un nouveau service
+Les unités correspondantes arrivent dans `current_units`, indexé par les mêmes
+clés (`current_units.wind_speed_10m` → `"km/h"`). Préférer ces unités à des
+suffixes écrits en dur dans les templates.
 
-1. Créer un fichier `mon-api.types.ts` avec les interfaces TypeScript
-2. Créer un fichier `mon-api.service.ts` avec `@Injectable({ providedIn: 'root' })`
-3. Injecter `HttpClientService` et utiliser ses méthodes génériques
-4. Exporter les types et service dans `index.ts`
+Les blocs `current`, `hourly` et `daily` sont optionnels dans la réponse : ils
+n'existent que si on les a demandés. Les types les déclarent donc en optionnel.
+
+## Ajouter un service d'API
+
+1. `mon-api.types.ts` — interfaces de réponse, calquées sur la réponse réelle
+   (vérifier avec un appel réel, pas seulement la doc).
+2. `mon-api.service.ts` — `@Injectable({ providedIn: 'root' })`, injecte
+   `HttpClientService`, expose des méthodes métier.
+3. Exporter les deux depuis `index.ts`.
 
 ## Configuration
 
-L'application doit avoir `HttpClientModule` fourni. Vérifiez que `app.config.ts` inclut:
-
-```typescript
-import { provideHttpClient } from '@angular/common/http';
-
-export const appConfig: ApplicationConfig = {
-  providers: [
-    provideHttpClient(),
-    // ... autres providers
-  ]
-};
-```
+`provideHttpClient()` est déclaré dans `src/app/app.config.ts`. Sans lui,
+l'injection de `HttpClient` échoue au démarrage.
