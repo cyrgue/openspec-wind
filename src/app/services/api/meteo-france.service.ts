@@ -104,7 +104,8 @@ export class MeteoFranceService {
     const query: QueryParams = {
       latitude,
       longitude,
-      timezone: params.timezone ?? 'auto'
+      timezone: params.timezone ?? 'auto',
+      wind_speed_unit: params.wind_speed_unit ?? 'kn'
     };
 
     if (params.current?.length) {

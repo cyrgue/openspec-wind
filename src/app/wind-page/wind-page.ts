@@ -30,8 +30,8 @@ interface Ville {
 })
 export class WindPage {
   protected readonly villes: readonly Ville[] = [
-    { nom: 'Paris', latitude: 48.8566, longitude: 2.3522 },
-    { nom: 'Lyon', latitude: 45.764, longitude: 4.8357 },
-    { nom: 'Marseille', latitude: 43.2965, longitude: 5.3698 }
+    { nom: 'Jullouville', latitude: 48.76863564997057, longitude: -1.5704452578882506 },
+    { nom: 'Annoville', latitude: 48.95882238071765, longitude: -1.5608089149874422 },
+    { nom: 'Agon-Coutainville', latitude: 49.030767224625286, longitude: -1.5963532940619958 }
   ];
 }

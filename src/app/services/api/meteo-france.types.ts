@@ -102,4 +102,6 @@ export interface MeteoFranceRequestParams {
   /** Fuseau horaire IANA, ou 'auto' pour le déduire des coordonnées. */
   timezone?: string;
   forecast_days?: number;
+  /** Unité de vitesse du vent. Par défaut : nœuds (`'kn'`). */
+  wind_speed_unit?: 'kmh' | 'ms' | 'mph' | 'kn';
 }
