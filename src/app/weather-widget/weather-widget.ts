@@ -1,6 +1,9 @@
+import { DatePipe } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { MeteoFranceService } from '../services/api/meteo-france.service';
 import { MeteoFranceWeatherResponse } from '../services/api/meteo-france.types';
+import { WorldTidesService } from '../services/api/world-tides.service';
+import { TideExtreme } from '../services/api/world-tides.types';
 
 const CARDINAUX = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'] as const;
 
@@ -10,6 +13,7 @@ const CARDINAUX = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'] as const;
  */
 @Component({
   selector: 'app-weather-widget',
+  imports: [DatePipe],
   template: `
     <div class="card h-100">
       <div class="card-body">
@@ -61,12 +65,36 @@ const CARDINAUX = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'] as const;
             </dl>
           }
         </div>
+
+        <div class="mt-3" aria-live="polite" aria-busy="{{ tideLoading() }}">
+          <h3 class="card-title h6 text-uppercase text-body-secondary mb-2">Marées</h3>
+          @if (tideLoading()) {
+            <div class="d-flex align-items-center gap-2 text-body-secondary">
+              <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+              <span>Chargement des marées…</span>
+            </div>
+          } @else if (tideError()) {
+            <p class="text-body-secondary small mb-0">{{ tideError() }}</p>
+          } @else if (tideExtremes(); as extremes) {
+            <ul class="list-inline mb-0">
+              @for (extreme of extremes; track extreme.time) {
+                <li class="list-inline-item">
+                  <span class="badge text-bg-light border">
+                    {{ extreme.type === 'High' ? 'PM' : 'BM' }}
+                    {{ extreme.time | date: 'HH:mm' }}
+                  </span>
+                </li>
+              }
+            </ul>
+          }
+        </div>
       </div>
     </div>
   `
 })
 export class WeatherWidget {
   private readonly meteo = inject(MeteoFranceService);
+  private readonly tides = inject(WorldTidesService);
 
   readonly latitude = input.required<number>();
   readonly longitude = input.required<number>();
@@ -74,6 +102,10 @@ export class WeatherWidget {
   private readonly response = signal<MeteoFranceWeatherResponse | null>(null);
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
+
+  readonly tideExtremes = signal<TideExtreme[] | null>(null);
+  readonly tideLoading = signal(true);
+  readonly tideError = signal<string | null>(null);
 
   readonly current = computed(() => this.response()?.current ?? null);
 
@@ -90,6 +122,7 @@ export class WeatherWidget {
     // effect() exige un contexte d'injection : le constructeur en est un.
     // Il relit latitude()/longitude() et relance l'appel si elles changent.
     effect(() => this.fetch(this.latitude(), this.longitude()));
+    effect(() => this.fetchTides(this.latitude(), this.longitude()));
   }
 
   /** Unité renvoyée par l'API pour une variable donnée. */
@@ -109,6 +142,23 @@ export class WeatherWidget {
       error: (err: Error) => {
         this.error.set('Météo indisponible pour le moment.');
         this.loading.set(false);
+        console.error('[WeatherWidget]', err.message);
+      }
+    });
+  }
+
+  private fetchTides(latitude: number, longitude: number): void {
+    this.tideLoading.set(true);
+    this.tideError.set(null);
+
+    this.tides.getTideExtremes(latitude, longitude).subscribe({
+      next: (extremes) => {
+        this.tideExtremes.set(extremes);
+        this.tideLoading.set(false);
+      },
+      error: (err: Error) => {
+        this.tideError.set('Horaires de marée indisponibles pour le moment.');
+        this.tideLoading.set(false);
         console.error('[WeatherWidget]', err.message);
       }
     });

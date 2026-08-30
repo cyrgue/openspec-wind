@@ -50,11 +50,21 @@ pas de `current.temperature`. Même logique pour `relative_humidity_2m`,
 `wind_speed_10m`, `wind_gusts_10m`, `wind_direction_10m`.
 
 Les unités correspondantes arrivent dans `current_units`, indexé par les mêmes
-clés (`current_units.wind_speed_10m` → `"km/h"`). Préférer ces unités à des
-suffixes écrits en dur dans les templates.
+clés (`current_units.wind_speed_10m` → `"kn"`, le service demandant le vent en
+nœuds via `wind_speed_unit`). Préférer ces unités à des suffixes écrits en dur
+dans les templates.
 
 Les blocs `current`, `hourly` et `daily` sont optionnels dans la réponse : ils
 n'existent que si on les a demandés. Les types les déclarent donc en optionnel.
+
+## WorldTidesService
+
+Horaires de marée (haute/basse) via worldtides.info. Nécessite une clé d'API
+(voir « Clé API World Tides » ci-dessous).
+
+| Méthode | Renvoie |
+| --- | --- |
+| `getTideExtremes(lat, lon)` | `TideExtreme[]` du jour (`{ type: 'High' \| 'Low', time }`) |
 
 ## Ajouter un service d'API
 
@@ -68,3 +78,19 @@ n'existent que si on les a demandés. Les types les déclarent donc en optionnel
 
 `provideHttpClient()` est déclaré dans `src/app/app.config.ts`. Sans lui,
 l'injection de `HttpClient` échoue au démarrage.
+
+### Clé API World Tides
+
+`WorldTidesService` lit sa clé dans `src/environments/environment.ts`, qui
+n'est **pas** versionné (voir `.gitignore`). Pour développer en local :
+
+1. Copier `src/environments/environment.example.ts` vers
+   `src/environments/environment.ts`.
+2. Créer un compte sur https://www.worldtides.info/register et récupérer une
+   clé d'API (offre gratuite disponible).
+3. Renseigner `worldTidesApiKey` dans le fichier copié.
+
+Cette clé étant utilisée côté client, elle est visible dans le bundle JS livré
+au navigateur — acceptable pour ce projet personnel sans backend, mais à
+garder en tête si le projet évolue (voir le design.md du changement
+`improve-wind-page`).

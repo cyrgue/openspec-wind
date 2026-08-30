@@ -1,10 +1,4 @@
-# wind-page Specification
-
-## Purpose
-
-Provides a dedicated page in the application, reachable via routing, that will serve as the foundation for future wind-related features.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Wind Page Display
 The system SHALL provide a page that displays weather and tide widgets for a set of default coastal locations when navigated to.
@@ -13,6 +7,8 @@ The system SHALL provide a page that displays weather and tide widgets for a set
 - **WHEN** a user navigates to the wind page route
 - **THEN** the page renders a widget for each default location
 - **AND** each widget shows current weather conditions for that location
+
+## ADDED Requirements
 
 ### Requirement: Default Coastal Locations
 The system SHALL default the wind page to three fixed coastal locations: Jullouville, Annoville, and Agon-Coutainville, at the following coordinates:
